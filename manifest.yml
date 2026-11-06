@@ -1,0 +1,98 @@
+modules:
+  # ── Rovo Agent (the AI path → targets "Best Agents" bonus) ───────────────
+  rovo:agent:
+    - key: hindsight-agent
+      name: Hindsight
+      description: >-
+        Predicts the post-mortem for a change BEFORE you ship it, by learning
+        from your team's past incidents and bugs on the same components.
+      icon: resource:icons;hindsight.svg
+      prompt: resource:agent-prompt;prompt.txt
+      conversationStarters:
+        - Run Hindsight on this issue
+        - What could break if we ship this?
+        - Predict incidents for PROJ-123
+      actions:
+        - predict-incident
+        - create-mitigation-subtasks
+
+  # ── Rovo MCP (exposes predict-incident as an MCP tool → "Best MCP app") ───
+  rovo:mcp:
+    - key: hindsight-mcp
+      name: Hindsight MCP
+      tools:
+        - predict-incident
+
+  # ── Rovo Actions (tools the agent can invoke) ────────────────────────────
+  action:
+    - key: predict-incident
+      name: Predict incident
+      function: predictIncident
+      actionVerb: GET
+      description: >-
+        Given a Jira issue key, assemble context from past incidents/bugs on the
+        same components and check runbook staleness, then return a predicted
+        post-mortem with a transparent confidence score. Read-only.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: "The Jira issue key to predict incidents for, e.g. PROJ-123"
+
+    - key: create-mitigation-subtasks
+      name: Create mitigation subtasks
+      function: createMitigations
+      actionVerb: CREATE
+      description: >-
+        Create Jira subtasks under the given issue for each mitigation step that
+        Hindsight recommended. Use only after the user confirms.
+      inputs:
+        issueKey:
+          title: Parent issue key
+          type: string
+          required: true
+          description: "The parent Jira issue key to create subtasks under"
+        steps:
+          title: Mitigation steps
+          type: string
+          required: true
+          description: "A newline-separated list of mitigation step summaries"
+
+  # ── Jira issue panel (the deterministic, always-works visual path) ───────
+  jira:issuePanel:
+    - key: hindsight-panel
+      resource: panel
+      resolver:
+        function: panel-resolver
+      render: native
+      title: Hindsight
+      icon: resource:icons;hindsight.svg
+
+  function:
+    - key: predictIncident
+      handler: index.predictIncident
+    - key: createMitigations
+      handler: index.createMitigationSubtasks
+    - key: panel-resolver
+      handler: index.handler
+
+resources:
+  - key: panel
+    path: src/frontend/index.jsx
+  - key: icons
+    path: static/icons
+  - key: agent-prompt
+    path: static/prompt
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:confluence-content.summary
+    - search:confluence
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/4d0f59f3-17d0-4409-8bf7-be39a1d38d86
